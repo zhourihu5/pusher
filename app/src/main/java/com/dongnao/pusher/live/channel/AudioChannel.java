@@ -43,7 +43,7 @@ public class AudioChannel {
 
     public void startLive() {
         isLiving = true;
-        executor.submit(new AudioTeask());
+        executor.submit(new AudioTask());
     }
 
     public void stopLive() {
@@ -53,10 +53,11 @@ public class AudioChannel {
 
     public void release() {
         audioRecord.release();
+        executor.shutdownNow();
     }
 
 
-    class AudioTeask implements Runnable {
+    class AudioTask implements Runnable {
 
         @Override
         public void run() {
