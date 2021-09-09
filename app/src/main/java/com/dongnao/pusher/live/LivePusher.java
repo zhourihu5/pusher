@@ -1,6 +1,8 @@
 package com.dongnao.pusher.live;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 
 import com.dongnao.pusher.live.channel.AudioChannel;
@@ -26,9 +28,17 @@ public class LivePusher {
     public void setPreviewDisplay(SurfaceHolder surfaceHolder) {
         videoChannel.setPreviewDisplay(surfaceHolder);
     }
-
+//    public void onActivityResult(int requestCode, int resultCode, Intent data){
+//        videoChannel.onActivityResult(requestCode,resultCode,data);
+//    }
     public void switchCamera() {
         videoChannel.switchCamera();
+    }
+    public Surface getSurface(){
+        if(videoChannel!=null){
+            return videoChannel.getSurface();
+        }
+        return null;
     }
 
     public void startLive(String path) {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+<!--    对应getFilesDir()。-->
+<!--    <files-path name="name" path="path" />-->
+<!--    对应getCacheDir()。-->
+    <cache-path name="cache" path="." />
+<!--    对应Environment.getExternalStorageDirectory()。-->
+<!--    <external-path name="name" path="path" />-->
+<!--    对应getExternalFilesDir()。-->
+<!--    <external-files-path name="name" path="path" />-->
+<!--    对应getExternalCacheDir()。-->
+<!--    <external-cache-path name="name" path="path" />-->
+</paths>
+

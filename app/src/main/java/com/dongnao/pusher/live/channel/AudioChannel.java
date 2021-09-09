@@ -16,7 +16,7 @@ public class AudioChannel {
     private AudioRecord audioRecord;
     private LivePusher mLivePusher;
     private int channels = 1;
-    private boolean isLiving;
+    private volatile boolean isLiving;
 
     public AudioChannel(LivePusher livePusher) {
         mLivePusher = livePusher;
