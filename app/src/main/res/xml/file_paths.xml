@@ -5,9 +5,9 @@
 <!--    对应getCacheDir()。-->
     <cache-path name="cache" path="." />
 <!--    对应Environment.getExternalStorageDirectory()。-->
-<!--    <external-path name="name" path="path" />-->
+    <external-path name="external" path="." />
 <!--    对应getExternalFilesDir()。-->
-<!--    <external-files-path name="name" path="path" />-->
+    <external-files-path name="external_file_video" path="video" />
 <!--    对应getExternalCacheDir()。-->
 <!--    <external-cache-path name="name" path="path" />-->
 </paths>

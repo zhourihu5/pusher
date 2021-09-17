@@ -6,6 +6,7 @@ import android.hardware.Camera;
 import android.media.MediaCodec;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.support.v4.content.FileProvider;
 import android.util.Log;
 import android.view.Surface;
@@ -14,6 +15,8 @@ import android.view.SurfaceHolder;
 import com.dongnao.pusher.Constant;
 import com.dongnao.pusher.MainActivity;
 import com.dongnao.pusher.live.LivePusher;
+import com.dongnao.pusher.video.VideoActivity;
+import com.dongnao.pusher.video.codec.ISurface;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 
-public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChangedSizeListener, MediaRecorder.CallBack {
+public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChangedSizeListener, ISurface {
 
 
     private LivePusher mLivePusher;
@@ -50,41 +53,41 @@ public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChan
 //            mediaCodecHelper.setCallBack(this);
 //            mediaCodecHelper.initMPManager();
 //            mediaCodecHelper.startScreenCapture();
-            File file= new File(activity.getExternalCacheDir(),"a.mp4");
+//            File file= new File(activity.getExternalCacheDir(),"a.mp4");
+            File file= new File(activity.getExternalFilesDir("video"),"a.mp4");
+//            File file= new File(Environment.getExternalStorageDirectory(),"b.mp4");
+//            File file= new File("/sdcard/a.mp4");
             String path=file.getAbsolutePath();
             mediaRecorder=new MediaRecorder(activity,path,width,height,bitrate,fps);
-            mediaRecorder.setCallBack(this);
+            mediaRecorder.setiSurface(this);
             mediaRecorder.setOnRecordFinishListener(new MediaRecorder.OnRecordFinishListener() {
                 @Override
                 public void onRecordFinish(String path) {
                     activity.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            try {
-                                Intent intent = new Intent(Intent.ACTION_VIEW);
-
-                                Uri uri=null;
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {//24 android7
-                                    uri = FileProvider.getUriForFile(activity, Constant.FILE_PROVIDER_AUTH, file);
-                                } else {
-                                    uri=Uri.fromFile(file);
-                                }
-                                intent.setDataAndType(uri,"video/mp4");
-                                activity.startActivity(intent);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                //todo
-                            }
+//                            try {
+//                                Intent intent = new Intent(Intent.ACTION_VIEW);
+//
+//                                Uri uri=null;
+//                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {//24 android7
+//                                    uri = FileProvider.getUriForFile(activity, Constant.FILE_PROVIDER_AUTH, file);
+//                                } else {
+//                                    uri=Uri.fromFile(file);
+//                                }
+//                                intent.setDataAndType(uri,"video/mp4");
+//                                activity.startActivity(intent);
+//                            } catch (Exception e) {
+//                                e.printStackTrace();
+//                                //todo
+//                            }
+                            Intent intent=new Intent(activity, VideoActivity.class);
+                            intent.putExtra("path",path);
+                            activity.startActivity(intent);
                         }
                     });
                 }
             });
-            try {
-                mediaRecorder.start(1.0f);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-//            mediaRecorder.encodeFrame(1,System.currentTimeMillis());
             onChanged(height,width);
         }
     }
@@ -100,11 +103,6 @@ public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChan
             cameraHelper.setPreviewDisplay(surfaceHolder);
         }
     }
-//    public void onActivityResult(int requestCode, int resultCode, Intent data){
-//        if(mediaCodecHelper!=null){
-//            mediaCodecHelper.onActivityResult(requestCode,resultCode,data);
-//        }
-//    }
 
     /**
      * 得到nv21数据 已经旋转好的
@@ -119,14 +117,35 @@ public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChan
             Log.e("onPreviewFrame", "onPreviewFrame: "+data);
         }
     }
-    @Override
+//    @Override
     public void onPreviewFrame(byte[] data, MediaCodec.BufferInfo mBufferInfo, MediaCodec mEncoder, ByteBuffer outputBuffer, int outputBufferIndex) {
-        Log.e("onPreviewFrame", Arrays.toString(data));
-        if (isLiving) {
-            mLivePusher.native_pushVideo(data);
-        }
+        onPreviewFrame(data,null);
+        Log.e("onPreviewFrame", "data.length:"+data.length);
+        printHexString("onPreviewFrame",data);
     }
-
+    /**
+     * 将指定byte数组以16进制的形式打印到控制台
+     *
+     * @param hint
+     *            String
+     * @param b
+     *            byte[]
+     * @return void
+     */
+    public static void printHexString(String hint, byte[] b)
+    {
+        System.out.print(hint);
+        for (int i = 0; i < b.length; i++)
+        {
+            String hex = Integer.toHexString(b[i] & 0xFF);
+            if (hex.length() == 1)
+            {
+                hex = '0' + hex;
+            }
+            System.out.print(hex.toUpperCase() + " ");
+        }
+        System.out.println("");
+    }
 
     public void switchCamera() {
         if(cameraHelper!=null){
@@ -153,7 +172,6 @@ public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChan
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            mediaRecorder.encodeFrame(1,System.currentTimeMillis());
         }
     }
 
@@ -168,10 +186,25 @@ public class VideoChannel implements Camera.PreviewCallback, CameraHelper.OnChan
         if(cameraHelper!=null){
             cameraHelper.release();
         }
-        if(mediaRecorder!=null){
-            mediaRecorder.stop();
+        if(isLiving){
+            stopLive();
         }
     }
 
+    byte[]outData;
+    @Override
+    public void offer(byte[] data) {
+        outData=data;
+        onPreviewFrame(data,null);
+    }
 
+    @Override
+    public byte[] poll() {
+        return outData;
+    }
+
+    @Override
+    public void setVideoParamerters(int width, int height, int fps) {
+        onChanged(width,height);
+    }
 }

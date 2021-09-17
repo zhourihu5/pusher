@@ -13,6 +13,8 @@ import android.util.Log;
 import android.view.Surface;
 
 import com.dongnao.pusher.Constant;
+import com.dongnao.pusher.video.codec.ISurface;
+import com.dongnao.pusher.video.codec.VideoCodec;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -39,6 +41,8 @@ public class MediaRecorder {
     private  int bitrate= Constant.VIDEO_BITRATE;
     private  int fps=Constant.VIDEO_FRAMERATE;
 
+    VideoCodec videoCodec;
+
     /**
      * @param context 上下文
      * @param path    保存视频的地址
@@ -54,6 +58,11 @@ public class MediaRecorder {
         this.bitrate=bitrate;
         this.fps=fps;
 //        mEglContext = eglContext;
+        try {
+            init();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public Surface getInputSurface() {
@@ -66,37 +75,9 @@ public class MediaRecorder {
      */
     public void start(float speed) throws IOException {
         mSpeed = speed;
-        /**
-         * 配置MediaCodec 编码器
-         */
-        //视频格式
-        // 类型（avc高级编码 h264） 编码出的宽、高
-        MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, mWidth, mHeight);
-        //参数配置
-        // 1500kbs码率
-        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
-        //帧率
-        mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
-        //关键帧间隔
-        mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, fps);
-        //颜色格式（RGB\YUV）
-        //从surface当中回去
-        mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-        //编码器
-        mMediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-        //将参数配置给编码器
-        mMediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-
-        //交给虚拟屏幕 通过opengl 将预览的纹理 绘制到这一个虚拟屏幕中
-        //这样MediaCodec 就会自动编码 inputSurface 中的图像
-        mInputSurface = mMediaCodec.createInputSurface();
-
-        //  H.264
-        // 播放：
-        //  MP4 -> 解复用 (解封装) -> 解码 -> 绘制
-        //封装器 复用器
-        // 一个 mp4 的封装器 将h.264 通过它写出到文件就可以了
-        mMediaMuxer = new MediaMuxer(mPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        if(mMediaCodec==null){
+            init();
+        }
 
 
         /**
@@ -119,8 +100,48 @@ public class MediaRecorder {
                 //启动编码器
                 mMediaCodec.start();
                 isStart = true;
+                encodeFrame(0,System.currentTimeMillis());
             }
         });
+
+    }
+
+    private void init() throws IOException {
+        /**
+         * 配置MediaCodec 编码器
+         */
+        //视频格式
+        // 类型（avc高级编码 h264） 编码出的宽、高
+        MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, mWidth, mHeight);
+        //参数配置
+        // 1500kbs码率
+        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
+        //帧率
+        mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
+        //关键帧间隔
+        mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, fps);
+        //颜色格式（RGB\YUV）
+        //从surface当中回去
+        mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+//        mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
+        //编码器
+        mMediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+        //将参数配置给编码器
+        mMediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+
+        //交给虚拟屏幕 通过opengl 将预览的纹理 绘制到这一个虚拟屏幕中
+        //这样MediaCodec 就会自动编码 inputSurface 中的图像
+        mInputSurface = mMediaCodec.createInputSurface();
+
+        //  H.264
+        // 播放：
+        //  MP4 -> 解复用 (解封装) -> 解码 -> 绘制
+        //封装器 复用器
+        // 一个 mp4 的封装器 将h.264 通过它写出到文件就可以了
+        mMediaMuxer = new MediaMuxer(mPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+
+        videoCodec=new VideoCodec();
+        videoCodec.setDataSource(mPath);
 
     }
 
@@ -177,6 +198,8 @@ public class MediaRecorder {
                 // 增加一路指定格式的媒体流 视频
                 index = mMediaMuxer.addTrack(outputFormat);
                 mMediaMuxer.start();
+                videoCodec.prepare();
+                videoCodec.start();
             } else if (status == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
                 //忽略
             } else {
@@ -190,9 +213,9 @@ public class MediaRecorder {
                 if (bufferInfo.size != 0) {
                     byte[] outData = new byte[bufferInfo.size];
                     outputBuffer.get(outData);
-                    if(callBack!=null){
-                        callBack.onPreviewFrame(outData,bufferInfo,mMediaCodec,outputBuffer,status);
-                    }
+//                    if(callBack!=null){
+//                        callBack.onPreviewFrame(outData,bufferInfo,mMediaCodec,outputBuffer,status);
+//                    }
 
                     bufferInfo.presentationTimeUs = (long) (bufferInfo.presentationTimeUs / mSpeed);
                     //偶尔出现：timestampUs 196608 < lastTimestampUs 196619 for Video track
@@ -240,6 +263,8 @@ public class MediaRecorder {
                 mInputSurface = null;
                 mHandler.getLooper().quitSafely();
                 mHandler = null;
+                videoCodec.stop();
+                videoCodec=null;
                 //录制完成，通过回调借口回调出去 并把录制的视频地址传出去
                 if (null != mListener){
                     mListener.onRecordFinish(mPath);
@@ -261,13 +286,17 @@ public class MediaRecorder {
     public interface OnRecordFinishListener{
         void onRecordFinish(String path);
     }
-    CallBack callBack;
 
-    public void setCallBack(CallBack callBack) {
-        this.callBack = callBack;
+    public void setiSurface(ISurface iSurface) {
+        videoCodec.setDisplay(iSurface);
     }
-
-    interface CallBack{
-        void onPreviewFrame(byte[] data, MediaCodec.BufferInfo mBufferInfo, MediaCodec mEncoder, ByteBuffer outputBuffer, int outputBufferIndex);
-    }
+    //    CallBack callBack;
+//
+//    public void setCallBack(CallBack callBack) {
+//        this.callBack = callBack;
+//    }
+//
+//    interface CallBack{
+//        void onPreviewFrame(byte[] data, MediaCodec.BufferInfo mBufferInfo, MediaCodec mEncoder, ByteBuffer outputBuffer, int outputBufferIndex);
+//    }
 }
